@@ -22,10 +22,10 @@ public class GridManager : MonoBehaviour
         }
 
         // Testing gas adding
-        grid[3, 2].AddGas(new Gas(Oxygen, 50f, 20f));
+        grid[3, 2].AddGas(new Gas(Oxygen, 50f), 20f);
         foreach (Gas g in grid[3, 2].gases)
         {
-            Debug.Log($"Gas: {g.type.name}, Amount: {g.amount}, Temp: {g.temperature}");
+            Debug.Log($"Gas: {g.type.name}, Amount: {g.amount}");
         }
     }
 
@@ -62,7 +62,6 @@ public class GridManager : MonoBehaviour
 
         if (timer >= interval)
         {
-            Debug.Log("Boop");
             timer = 0f; // reset timer
             UpdateGrid(); // run your function
         }
@@ -82,7 +81,7 @@ public class GridManager : MonoBehaviour
 
         foreach ((Cell pendingNeigbor, Gas pendingGas) in pendingTransfers)
         {
-            pendingNeigbor.AddGas(pendingGas);
+            pendingNeigbor.AddGas(pendingGas, pendingNeigbor.temperature);
         }
     }
 
@@ -129,7 +128,7 @@ public class GridManager : MonoBehaviour
                 float differential = (cell.pressure - neighbor.pressure);
                 float transfer = (g.amount / ((float)amountValidSides + 1f));    // Tweakable exponent base
                 lossTotal += transfer;
-                pendingTransfers.Add((neighbor, new Gas(g.type, transfer, g.temperature)));
+                pendingTransfers.Add((neighbor, new Gas(g.type, transfer)));
             }
             //pendingLosses.Add((cell, g, lossTotal));
             g.amount -= lossTotal;
@@ -142,6 +141,7 @@ public class Cell
     public int x;
     public int y;
 
+    public float temperature = 0f;
     public List<Gas> gases;
     public List<CellContent> contents;
 
@@ -163,13 +163,13 @@ public class Cell
             float total = 0f;
             foreach (var g in gases)
             {
-                total += g.amount * R * g.temperature / cellVolume;
+                total += g.amount * R * temperature / cellVolume;
             }
             return total;
         }
     }
 
-    public float gasAmount
+    public float totalGasAmount
     {
         get
         {
@@ -187,39 +187,38 @@ public class Cell
         contents.Add(content);
     }
 
-    public void AddGas(Gas gas)
+    public void AddGas(Gas addedGas, float addedTemperature)
     {
-        if (gas.amount >= 0.001f)
+        if (addedGas.amount >= 0.001f)
         {
+            temperature = ((totalGasAmount * temperature) + (addedGas.amount * addedTemperature)) / (totalGasAmount + addedGas.amount);
+
             foreach (var g in gases)
             {
-                if (g.type == gas.type)
+                if (g.type == addedGas.type)
                 {
-                    g.temperature = ((g.temperature * g.amount) + (gas.temperature * gas.amount)) / (g.amount + gas.amount);
-                    g.amount += gas.amount;
+                    g.amount += addedGas.amount;
                     return;
                 }
             }
-            gases.Add(gas);
+            gases.Add(addedGas);
         }
     }
 }
 
 public static class GasTypes
 {
-    public static readonly GasType Oxygen = new GasType("Oxygen", 0.918f);
-    public static readonly GasType Hydrogen = new GasType("Hydrogen", 14.304f);
+    public static readonly GasType Oxygen = new GasType("Oxygen");
+    public static readonly GasType Hydrogen = new GasType("Hydrogen");
 }
 
 public class GasType
 {
     public string name;
-    public float heatCapacity;
 
-    public GasType(string name, float heatCapacity)
+    public GasType(string name)
     {
         this.name = name;
-        this.heatCapacity = heatCapacity;
     }
 }
 
@@ -227,13 +226,11 @@ public class Gas
 {
     public GasType type;
     public float amount;
-    public float temperature;
 
-    public Gas(GasType type, float amount, float temperature)
+    public Gas(GasType type, float amount)
     {
         this.type = type;
         this.amount = amount;
-        this.temperature = temperature;
     }
 }
 
