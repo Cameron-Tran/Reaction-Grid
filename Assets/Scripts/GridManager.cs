@@ -22,10 +22,10 @@ public class GridManager : MonoBehaviour
         }
 
         // Testing gas adding
-        grid[3, 2].AddGas(new Gas(Oxygen, 50f), 20f);
+        grid[3, 2].AddGas(new Gas(Oxygen, 50f), 300f);  // Temp in kelvin (very important or low pressure)
         foreach (Gas g in grid[3, 2].gases)
         {
-            Debug.Log($"Gas: {g.type.name}, Amount: {g.amount}");
+            Debug.Log($"Gas: {g.type.name}, Amount: {g.amount}, Pressure: {grid[3, 2].pressure}");
         }
     }
 
@@ -69,24 +69,39 @@ public class GridManager : MonoBehaviour
 
     void UpdateGrid()
     {
-        List<(Cell pendingNeighbor, Gas pendingGas)> pendingTransfers = new List<(Cell, Gas)>();
+        List<(Cell pendingGainingCell, Gas pendingGas)> pendingTransfers = new List<(Cell, Gas)>();
+        List<(Cell pendingCell, Gas pendingGas)> pendingLosses = new List<(Cell, Gas)>();
 
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
-                SpreadGas(grid[x, y], pendingTransfers);
+                SpreadGas(grid[x, y], pendingTransfers, pendingLosses);
             }
         }
 
-        foreach ((Cell pendingNeigbor, Gas pendingGas) in pendingTransfers)
+        foreach ((Cell pendingCell, Gas pendingGas) in pendingTransfers)
         {
-            pendingNeigbor.AddGas(pendingGas, pendingNeigbor.temperature);
+            pendingCell.AddGas(pendingGas, pendingCell.temperature);
+        }
+        foreach ((Cell pendingCell, Gas pendingGas) in pendingLosses)
+        {
+            pendingCell.RemoveGas(pendingGas);
+        }
+
+        foreach (Gas g in grid[3, 2].gases)
+        {
+            Debug.Log($"INITIAL:    Gas: {g.type.name}, Amount: {g.amount}, Temp: {grid[3, 2].temperature}, Pressure: {grid[3, 2].pressure}");
+        }
+        foreach (Gas g in grid[4, 2].gases)
+        {
+            Debug.Log($"NEIGHBOR:   Gas: {g.type.name}, Amount: {g.amount}, Temp: {grid[3, 2].temperature}, Pressure: {grid[4, 2].pressure}");
         }
     }
 
     public float diffConst = 2f;
-    void SpreadGas(Cell cell, List<(Cell pendingNeighbor, Gas pendingGas)> pendingTransfers)
+
+    void SpreadGas(Cell cell, List<(Cell pendingNeighbor, Gas pendingGas)> pendingTransfers, List<(Cell pendingCell, Gas pendingGas)> pendingLosses)
     {
         // Check neighbors and move gas around
         int[][] directions = new int[][]
@@ -96,7 +111,6 @@ public class GridManager : MonoBehaviour
             new int[] { 0, 1 },
             new int[] { 0, -1 }
         };
-        int amountValidSides = 0;
         List<Cell> validCells = new List<Cell>();
 
         foreach (var dir in directions)
@@ -109,29 +123,25 @@ public class GridManager : MonoBehaviour
                 Cell neighbor = grid[nx, ny];
                 if (cell.pressure > neighbor.pressure)
                 {
-                    amountValidSides++;
                     validCells.Add(neighbor);
                 }
             }
         }
 
-        if (amountValidSides == 0)
+        if (validCells.Count == 0)
         {
             return;
         }
 
         foreach (Gas g in cell.gases)
         {
-            float lossTotal = 0f;
             foreach (Cell neighbor in validCells)
             {
-                float differential = (cell.pressure - neighbor.pressure);
-                float transfer = (g.amount / ((float)amountValidSides + 1f));    // Tweakable exponent base
-                lossTotal += transfer;
+                //float differential = (cell.pressure - neighbor.pressure);
+                float transfer = (g.amount / ((float)validCells.Count + 1f));
+                pendingLosses.Add((cell, new Gas(g.type, transfer)));
                 pendingTransfers.Add((neighbor, new Gas(g.type, transfer)));
             }
-            //pendingLosses.Add((cell, g, lossTotal));
-            g.amount -= lossTotal;
         }
     }
 }
@@ -141,7 +151,7 @@ public class Cell
     public int x;
     public int y;
 
-    public float temperature = 0f;
+    public float temperature = 200f;
     public List<Gas> gases;
     public List<CellContent> contents;
 
@@ -160,12 +170,7 @@ public class Cell
     {
         get
         {
-            float total = 0f;
-            foreach (var g in gases)
-            {
-                total += g.amount * R * temperature / cellVolume;
-            }
-            return total;
+            return totalGasAmount * R * temperature / cellVolume;
         }
     }
 
@@ -202,6 +207,21 @@ public class Cell
                 }
             }
             gases.Add(addedGas);
+        }
+    }
+
+    public void RemoveGas(Gas removedGas)
+    {
+        foreach (var g in gases)
+        {
+            if (removedGas.type == g.type)
+            {
+                g.amount -= Mathf.Min(removedGas.amount, g.amount);
+                if (g.amount < 0.001f)
+                {
+                    g.amount = 0f;
+                }
+            }
         }
     }
 }
