@@ -303,7 +303,7 @@ MonoBehaviour:
   width: 10
   height: 10
   interval: 3
-  diffConst: 2
+  diffConst: 0.00005
 --- !u!1 &619394800
 GameObject:
   m_ObjectHideFlags: 0

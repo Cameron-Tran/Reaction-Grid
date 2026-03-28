@@ -72,11 +72,14 @@ public class GridManager : MonoBehaviour
         List<(Cell pendingGainingCell, Gas pendingGas, float sentTemperature)> pendingTransfers = new List<(Cell, Gas, float)>();
         List<(Cell pendingCell, Gas pendingGas)> pendingLosses = new List<(Cell, Gas)>();
 
+        float systemGasAmount = 0f;
+
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
                 SpreadGas(grid[x, y], pendingTransfers, pendingLosses);
+                systemGasAmount += grid[x, y].totalGasAmount;
             }
         }
 
@@ -97,6 +100,8 @@ public class GridManager : MonoBehaviour
         {
             Debug.Log($"NEIGHBOR:   Gas: {g.type.name}, Amount: {g.amount}, Temp: {grid[4, 2].temperature}, Pressure: {grid[4, 2].pressure}");
         }
+
+        Debug.Log($"TOTAL SYSTEM N: {systemGasAmount}");
     }
 
     public float diffConst = 2f;
@@ -137,8 +142,10 @@ public class GridManager : MonoBehaviour
         {
             foreach (Cell neighbor in validCells)
             {
-                //float differential = (cell.pressure - neighbor.pressure);
-                float transfer = (g.amount / ((float)validCells.Count + 1f));
+                float differential = (cell.pressure - neighbor.pressure);
+                float transfer = diffConst * differential * (g.amount / cell.totalGasAmount);
+                transfer = transfer = Mathf.Min(transfer, g.amount);
+
                 pendingLosses.Add((cell, new Gas(g.type, transfer)));
                 pendingTransfers.Add((neighbor, new Gas(g.type, transfer), cell.temperature));
             }
@@ -195,7 +202,7 @@ public class Cell
 
     public void AddGas(Gas addedGas, float addedTemperature)
     {
-        if (addedGas.amount >= 0.001f)
+        if (addedGas.amount >= 0.00001f)
         {
             if (totalGasAmount == 0f)
             {
@@ -225,7 +232,7 @@ public class Cell
             if (removedGas.type == g.type)
             {
                 g.amount -= Mathf.Min(removedGas.amount, g.amount);
-                if (g.amount < 0.001f)
+                if (g.amount < 0.00001f)
                 {
                     g.amount = 0f;
                 }
